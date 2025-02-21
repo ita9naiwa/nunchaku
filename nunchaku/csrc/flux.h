@@ -15,12 +15,12 @@ public:
     }
 
     torch::Tensor forward(
-        torch::Tensor hidden_states, 
-        torch::Tensor encoder_hidden_states, 
-        torch::Tensor temb, 
-        torch::Tensor rotary_emb_img, 
-        torch::Tensor rotary_emb_context, 
-        torch::Tensor rotary_emb_single) 
+        torch::Tensor hidden_states,
+        torch::Tensor encoder_hidden_states,
+        torch::Tensor temb,
+        torch::Tensor rotary_emb_img,
+        torch::Tensor rotary_emb_context,
+        torch::Tensor rotary_emb_single)
     {
         checkModel();
 
@@ -50,10 +50,10 @@ public:
 
     std::tuple<torch::Tensor, torch::Tensor> forward_layer(
         int64_t idx,
-        torch::Tensor hidden_states, 
-        torch::Tensor encoder_hidden_states, 
-        torch::Tensor temb, 
-        torch::Tensor rotary_emb_img, 
+        torch::Tensor hidden_states,
+        torch::Tensor encoder_hidden_states,
+        torch::Tensor temb,
+        torch::Tensor rotary_emb_img,
         torch::Tensor rotary_emb_context)
     {
         spdlog::debug("QuantizedFluxModel forward_layer {}", idx);
@@ -82,8 +82,8 @@ public:
 
     torch::Tensor forward_single_layer(
         int64_t idx,
-        torch::Tensor hidden_states, 
-        torch::Tensor temb, 
+        torch::Tensor hidden_states,
+        torch::Tensor temb,
         torch::Tensor rotary_emb_single)
     {
         spdlog::debug("QuantizedFluxModel forward_single_layer {}", idx);

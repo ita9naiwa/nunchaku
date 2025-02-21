@@ -23,7 +23,6 @@ class NunchakuFluxTransformerBlocks(nn.Module):
 
     def forward(
         self,
-        /,
         hidden_states: torch.Tensor,
         temb: torch.Tensor,
         encoder_hidden_states: torch.Tensor,
@@ -172,6 +171,7 @@ class NunchakuFluxTransformer2dModel(FluxTransformer2DModel, NunchakuModelLoader
         block.m.setLoraScale(SVD_RANK, strength)
 
     def inject_quantized_module(self, m: QuantizedFluxModel, device: str | torch.device = "cuda"):
+        print("Injecting quantized module")
         self.pos_embed = EmbedND(dim=self.inner_dim, theta=10000, axes_dim=[16, 56, 56])
 
         ### Compatible with the original forward method
