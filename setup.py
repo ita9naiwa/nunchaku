@@ -1,7 +1,12 @@
 import os
+import re
+import subprocess
+import sys
 
 import setuptools
-from torch.utils.cpp_extension import BuildExtension, CUDAExtension
+import torch
+from packaging import version as packaging_version
+from torch.utils.cpp_extension import BuildExtension, CUDA_HOME, CUDAExtension
 
 
 class CustomBuildExtension(BuildExtension):
@@ -17,6 +22,40 @@ class CustomBuildExtension(BuildExtension):
             else:
                 ext.extra_compile_args["cxx"] += ext.extra_compile_args["gcc"]
         super().build_extensions()
+
+
+def get_sm_targets() -> list[str]:
+    nvcc_path = os.path.join(CUDA_HOME, "bin/nvcc") if CUDA_HOME else "nvcc"
+    try:
+        nvcc_output = subprocess.check_output([nvcc_path, "--version"]).decode()
+        match = re.search(r"release (\d+\.\d+), V(\d+\.\d+\.\d+)", nvcc_output)
+        if match:
+            nvcc_version = match.group(2)
+        else:
+            raise Exception("nvcc version not found")
+        print(f"Found nvcc version: {nvcc_version}")
+    except:
+        raise Exception("nvcc not found")
+
+    support_sm120 = packaging_version.parse(nvcc_version) >= packaging_version.parse("12.8")
+
+    install_mode = os.getenv("NUNCHAKU_INSTALL_MODE", "FAST")
+    if install_mode == "FAST":
+        ret = []
+        for i in range(torch.cuda.device_count()):
+            capability = torch.cuda.get_device_capability(i)
+            sm = f"{capability[0]}{capability[1]}"
+            if sm == "120" and support_sm120:
+                sm = "120a"
+            assert sm in ["80", "86", "89", "120a"], f"Unsupported SM {sm}"
+            if sm not in ret:
+                ret.append(sm)
+    else:
+        assert install_mode == "ALL"
+        ret = ["80", "86", "89"]
+        if support_sm120:
+            ret.append("120a")
+    return ret
 
 
 if __name__ == "__main__":
@@ -55,12 +94,6 @@ if __name__ == "__main__":
     NVCC_FLAGS = [
         "-DENABLE_BF16=1",
         "-DBUILD_NUNCHAKU=1",
-        "-gencode",
-        "arch=compute_86,code=sm_86",
-        "-gencode",
-        "arch=compute_89,code=sm_89",
-        # "-gencode",
-        # "arch=compute_89,code=sm_120a",
         "-g",
         "-std=c++20",
         "-UNDEBUG",
@@ -75,13 +108,21 @@ if __name__ == "__main__":
         "-U__CUDA_NO_BFLOAT16_CONVERSIONS__",
         "-U__CUDA_NO_BFLOAT162_OPERATORS__",
         "-U__CUDA_NO_BFLOAT162_CONVERSIONS__",
-        "--threads=2",
+        "--threads=3",
         "--expt-relaxed-constexpr",
         "--expt-extended-lambda",
         "--generate-line-info",
         "--ptxas-options=--allow-expensive-optimizations=true",
     ]
-    # https://github.com/NVIDIA/cutlass/pull/1479#issuecomment-2052300487
+
+    sm_targets = get_sm_targets()
+    print(f"Detected SM targets: {sm_targets}", file=sys.stderr)
+
+    assert len(sm_targets) > 0, "No SM targets found"
+
+    for target in sm_targets:
+        NVCC_FLAGS += ["-gencode", f"arch=compute_{target},code=sm_{target}"]
+
     NVCC_MSVC_FLAGS = ["-Xcompiler", "/Zc:__cplusplus"]
 
     nunchaku_extension = CUDAExtension(

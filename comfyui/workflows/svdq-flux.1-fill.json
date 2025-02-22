@@ -167,7 +167,7 @@
         "Node name for S&R": "KSampler"
       },
       "widgets_values": [
-        1078304127779394,
+        54184445162233,
         "randomize",
         20,
         1,
@@ -389,74 +389,6 @@
       ]
     },
     {
-      "id": 48,
-      "type": "Note",
-      "pos": [
-        466.9884033203125,
-        643.9080810546875
-      ],
-      "size": [
-        314.99755859375,
-        117.98363494873047
-      ],
-      "flags": {},
-      "order": 3,
-      "mode": 0,
-      "inputs": [],
-      "outputs": [],
-      "properties": {
-        "text": ""
-      },
-      "widgets_values": [
-        "To add mask for fill inpainting, right click on the uploaded image and select \"Open in MaskEditor\". Use the brush tool to add masking and click save to continue."
-      ],
-      "color": "#432",
-      "bgcolor": "#653"
-    },
-    {
-      "id": 17,
-      "type": "LoadImage",
-      "pos": [
-        126.66505432128906,
-        460.53631591796875
-      ],
-      "size": [
-        315,
-        314.0000305175781
-      ],
-      "flags": {},
-      "order": 4,
-      "mode": 0,
-      "inputs": [],
-      "outputs": [
-        {
-          "name": "IMAGE",
-          "type": "IMAGE",
-          "links": [
-            105
-          ],
-          "slot_index": 0,
-          "shape": 3
-        },
-        {
-          "name": "MASK",
-          "type": "MASK",
-          "links": [
-            106
-          ],
-          "slot_index": 1,
-          "shape": 3
-        }
-      ],
-      "properties": {
-        "Node name for S&R": "LoadImage"
-      },
-      "widgets_values": [
-        "clipspace/clipspace-mask-123191.png [input]",
-        "image"
-      ]
-    },
-    {
       "id": 58,
       "type": "ImageAndMaskResizeNode",
       "pos": [
@@ -547,10 +479,80 @@
         "Node name for S&R": "CLIPTextEncode"
       },
       "widgets_values": [
-        "A robot with a closed eye pink face is giving a presentation"
+        "A wooden basket of a cat."
       ],
       "color": "#232",
       "bgcolor": "#353"
+    },
+    {
+      "id": 48,
+      "type": "Note",
+      "pos": [
+        210.1423797607422,
+        572.7574462890625
+      ],
+      "size": [
+        266.4635925292969,
+        132.3040771484375
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "properties": {
+        "text": ""
+      },
+      "widgets_values": [
+        "To add mask for fill inpainting, right click on the uploaded image and select \"Open in MaskEditor\". Use the brush tool to add masking and click save to continue."
+      ],
+      "color": "#432",
+      "bgcolor": "#653"
+    },
+    {
+      "id": 17,
+      "type": "LoadImage",
+      "pos": [
+        -225.73123168945312,
+        316.9361267089844
+      ],
+      "size": [
+        423.5578308105469,
+        437.250732421875
+      ],
+      "flags": {
+        "collapsed": false
+      },
+      "order": 4,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            105
+          ],
+          "slot_index": 0,
+          "shape": 3
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": [
+            106
+          ],
+          "slot_index": 1,
+          "shape": 3
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LoadImage"
+      },
+      "widgets_values": [
+        "clipspace/clipspace-mask-8389612.599999994.png [input]",
+        "image"
+      ]
     }
   ],
   "links": [
@@ -697,8 +699,8 @@
     "ds": {
       "scale": 0.8390545288824038,
       "offset": [
-        361.8437326514503,
-        242.3368651567008
+        815.2093059315082,
+        185.9955477896796
       ]
     },
     "node_versions": {

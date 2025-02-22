@@ -12,6 +12,8 @@ class GEMM_W4A4_Launch {
     using packed_wgt_t    = typename GEMM::packed_wgt_t;
     using packed_ascale_t = typename GEMM::packed_ascale_t;
     using packed_wscale_t = typename GEMM::packed_wscale_t;
+    using packed_amscale_t = typename GEMM::packed_amscale_t;
+    using packed_wmscale_t = typename GEMM::packed_wmscale_t;
     using packed_fpsum_t  = typename GEMM::packed_fpsum_t;
     using half_t          = typename GEMM::half_t;
 
@@ -38,9 +40,12 @@ public:
         Tensor out_linearattn,// linear     [B, (M), N / 3]
         bool act_unsigned,
         std::vector<float> lora_scales,  // [R / 16]
-        bool fuse_silu
+        bool fuse_silu,
+        bool fp4,
+        float alpha,
+        Tensor wcscales       // packed ws  [N]  
     );
-    static void quantize_w4a4_act_fuse_lora(Tensor input, Tensor output, Tensor oscales, Tensor lora_down, Tensor lora_act_out, Tensor smooth, bool fuse_glu);
+    static void quantize_w4a4_act_fuse_lora(Tensor input, Tensor output, Tensor oscales, Tensor lora_down, Tensor lora_act_out, Tensor smooth, bool fuse_glu, bool fp4);
     static void quantize_w4a4_act(Tensor input, Tensor output, Tensor oscales);
     static void quantize_w4a4_wgt(Tensor input, Tensor output, Tensor oscales);
 

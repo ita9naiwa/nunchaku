@@ -14,7 +14,7 @@ def get_args():
         "-m", "--model", type=str, default="schnell", choices=["schnell", "dev"], help="Which FLUX.1 model to use"
     )
     parser.add_argument(
-        "-p", "--precision", type=str, default="int4", choices=["int4", "bf16"], help="Which precision to use"
+        "-p", "--precision", type=str, default="int4", choices=["int4", "fp4", "bf16"], help="Which precision to use"
     )
     parser.add_argument(
         "-d", "--datasets", type=str, nargs="*", default=["MJHQ", "DCI"], help="The benchmark datasets to evaluate on."

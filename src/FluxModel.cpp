@@ -259,19 +259,19 @@ void Attention::setForceFP16(Module *module, bool value) {
     });
 }
 
-FluxSingleTransformerBlock::FluxSingleTransformerBlock(int dim, int num_attention_heads, int attention_head_dim, int mlp_ratio, Tensor::ScalarType dtype, Device device) :
+FluxSingleTransformerBlock::FluxSingleTransformerBlock(int dim, int num_attention_heads, int attention_head_dim, int mlp_ratio, bool use_fp4, Tensor::ScalarType dtype, Device device) :
     dim(dim), 
     dim_head(attention_head_dim / num_attention_heads),
     num_heads(num_attention_heads),
     mlp_hidden_dim(dim * mlp_ratio),
     norm(dim, dtype, device),
-    mlp_fc1(dim, mlp_hidden_dim, true, dtype, device),
-    mlp_fc2(mlp_hidden_dim, dim, true, dtype, device),
-    qkv_proj(dim, dim * 3, true, dtype, device),
+    mlp_fc1(dim, mlp_hidden_dim, true, use_fp4, dtype, device),
+    mlp_fc2(mlp_hidden_dim, dim, true, use_fp4, dtype, device),
+    qkv_proj(dim, dim * 3, true, use_fp4, dtype, device),
     norm_q(dim_head, 1e-6, false, dtype, device),
     norm_k(dim_head, 1e-6, false, dtype, device),
     attn(num_attention_heads, attention_head_dim / num_attention_heads, device),
-    out_proj(dim, dim, true, dtype, device)
+    out_proj(dim, dim, true, use_fp4, dtype, device)
 {
     registerChildren
         (norm, "norm")
@@ -327,28 +327,28 @@ Tensor FluxSingleTransformerBlock::forward(Tensor hidden_states, Tensor temb, Te
     return hidden_states;
 }
 
-JointTransformerBlock::JointTransformerBlock(int dim, int num_attention_heads, int attention_head_dim, bool context_pre_only, Tensor::ScalarType dtype, Device device) : 
+JointTransformerBlock::JointTransformerBlock(int dim, int num_attention_heads, int attention_head_dim, bool context_pre_only, bool use_fp4, Tensor::ScalarType dtype, Device device) : 
     dim(dim),
     dim_head(attention_head_dim / num_attention_heads),
     num_heads(num_attention_heads),
     context_pre_only(context_pre_only),
     norm1(dim, false, dtype, device),
     norm1_context(dim, context_pre_only, dtype, device),
-    qkv_proj(dim, dim * 3, true, dtype, device),
-    qkv_proj_context(dim, dim * 3, true, dtype, device),
+    qkv_proj(dim, dim * 3, true, use_fp4, dtype, device),
+    qkv_proj_context(dim, dim * 3, true, use_fp4, dtype, device),
     norm_q(dim_head, 1e-6, false, dtype, device),
     norm_k(dim_head, 1e-6, false, dtype, device),
     norm_added_q(dim_head, 1e-6, false, dtype, device),
     norm_added_k(dim_head, 1e-6, false, dtype, device),
     attn(num_attention_heads, attention_head_dim / num_attention_heads, device),
-    out_proj(dim, dim, true, dtype, device),
-    out_proj_context(dim, dim, true, dtype, device),
+    out_proj(dim, dim, true, use_fp4, dtype, device),
+    out_proj_context(dim, dim, true, use_fp4, dtype, device),
     norm2(dim, 1e-6, false, dtype, device),
     norm2_context(dim, 1e-6, false, dtype, device),
-    mlp_fc1(dim, dim * 4, true, dtype, device),
-    mlp_fc2(dim * 4, dim, true, dtype, device),
-    mlp_context_fc1(dim, dim * 4, true, dtype, device),
-    mlp_context_fc2(dim * 4, dim, true, dtype, device)
+    mlp_fc1(dim, dim * 4, true, use_fp4, dtype, device),
+    mlp_fc2(dim * 4, dim, true, use_fp4, dtype, device),
+    mlp_context_fc1(dim, dim * 4, true, use_fp4, dtype, device),
+    mlp_context_fc2(dim * 4, dim, true, use_fp4, dtype, device)
 {
     registerChildren
         (norm1, "norm1")
@@ -607,13 +607,13 @@ std::tuple<Tensor, Tensor> JointTransformerBlock::forward(Tensor hidden_states, 
     return { hidden_states, encoder_hidden_states };
 }
 
-FluxModel::FluxModel(Tensor::ScalarType dtype, Device device) {
+FluxModel::FluxModel(bool use_fp4, Tensor::ScalarType dtype, Device device) {
     for (int i = 0; i < 19; i++) {
-        transformer_blocks.push_back(std::make_unique<JointTransformerBlock>(3072, 24, 3072, false, dtype, device));
+        transformer_blocks.push_back(std::make_unique<JointTransformerBlock>(3072, 24, 3072, false, use_fp4, dtype, device));
         registerChildren(*transformer_blocks.back(), format("transformer_blocks.{}", i));
     }
     for (int i = 0; i < 38; i++) {
-        single_transformer_blocks.push_back(std::make_unique<FluxSingleTransformerBlock>(3072, 24, 3072, 4, dtype, Device::cuda()));
+        single_transformer_blocks.push_back(std::make_unique<FluxSingleTransformerBlock>(3072, 24, 3072, 4, use_fp4, dtype, Device::cuda()));
         registerChildren(*single_transformer_blocks.back(), format("single_transformer_blocks.{}", i));
     }
 }

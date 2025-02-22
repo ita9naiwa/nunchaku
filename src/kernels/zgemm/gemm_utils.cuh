@@ -43,6 +43,41 @@ static T load(const T *addr) {
     return *addr;
 }
 
+template<typename T>
+__device__ __forceinline__
+static T load_pred(const T *addr, bool pred) {
+    if constexpr (sizeof(T) == 4) {
+        uint32_t data;
+        asm volatile (
+            "{ .reg .pred loadpred; setp.ne.b32 loadpred, %2, 0;"
+            "@loadpred ld.global.nc.b32 %0, [%1];"
+            "}" : "=r"(data) : "l"(addr), "r"((int)pred));
+        return *reinterpret_cast<T *>(&data);
+    }
+    if constexpr (sizeof(T) == 8) {
+        uint2 data;
+        asm volatile (
+            "{ .reg .pred loadpred; setp.ne.b32 loadpred, %3, 0;"
+            "@loadpred ld.global.nc.v2.b32 {%0, %1}, [%2];"
+            "}" : "=r"(data.x), "=r"(data.y) : "l"(addr), "r"((int)pred));
+        return *reinterpret_cast<T *>(&data);
+    }
+    if constexpr (sizeof(T) == 16) {
+        uint4 data;
+        asm volatile (
+            "{ .reg .pred loadpred; setp.ne.b32 loadpred, %5, 0;"
+            "@loadpred ld.global.nc.v4.b32 {%0, %1, %2, %3}, [%4];"
+            "}" : "=r"(data.x), "=r"(data.y), "=r"(data.z), "=r"(data.w) : "l"(addr), "r"((int)pred));
+        return *reinterpret_cast<T *>(&data);
+    }
+
+    T result;
+    if (pred) {
+        result = *addr;
+    }
+    return result;
+}
+
 template<bool shmem = false, typename T>
 __device__ __forceinline__
 static void store(T *addr, T val) {
@@ -74,6 +109,39 @@ static void store(T *addr, T val) {
         return;
     } 
     *addr = val;
+}
+
+template<typename T>
+__device__ __forceinline__
+static void store_pred(T *addr, T val, bool pred) {
+    if constexpr (sizeof(T) == 4) {
+        uint32_t data = *reinterpret_cast<uint32_t *>(&val);
+        asm volatile (
+            "{ .reg .pred storepred; setp.ne.b32 storepred, %0, 0;"
+            "@storepred st.global.cg.b32 [%1], %2;"
+            "}" :: "r"((int)pred), "l"(addr), "r"(data));
+        return;
+    }
+    if constexpr (sizeof(T) == 8) {
+        uint2 data = *reinterpret_cast<uint2 *>(&val);
+        asm volatile (
+            "{ .reg .pred storepred; setp.ne.b32 storepred, %0, 0;"
+            "@storepred st.global.cg.v2.b32 [%1], {%2, %3};"
+            "}" :: "r"((int)pred), "l"(addr), "r"(data.x), "r"(data.y));
+        return;
+    }
+    if constexpr (sizeof(T) == 16) {
+        uint4 data = *reinterpret_cast<uint4 *>(&val);
+        asm volatile (
+            "{ .reg .pred storepred; setp.ne.b32 storepred, %0, 0;"
+            "@storepred st.global.cg.v4.b32 [%1], {%2, %3, %4, %5};"
+            "}" :: "r"((int)pred), "l"(addr), "r"(data.x), "r"(data.y), "r"(data.z), "r"(data.w));
+        return;
+    }
+
+    if (pred) {
+        *addr = val;
+    }
 }
 
 __device__ __forceinline__
@@ -157,6 +225,21 @@ uint32_t quantize_float2<8, false>(float2 value) {
     asm volatile ("cvt.rni.s32.f32 %0, %1;" : "=r"(v2) : "f"(value.y));
     asm volatile ("cvt.pack.sat.s8.s32.b32 %0, %1, %2, 0;" : "=r"(result) : "r"(v2), "r"(v1));
     return result;
+}
+
+__device__ __forceinline__
+uint32_t quantize_float2_fp4(float2 value) {
+    uint32_t result;
+    asm volatile ("{ .reg .b8 tmp; cvt.rn.satfinite.e2m1x2.f32 tmp, %1, %2; cvt.u32.u8 %0, tmp; }" : "=r"(result) : "f"(value.y), "f"(value.x));
+    return result;
+}
+
+__device__ __forceinline__
+uint32_t quantize_float4_fp8(float4 value) {
+    uint16_t lo, hi;
+    asm volatile ("cvt.rn.satfinite.e4m3x2.f32 %0, %1, %2;" : "=h"(lo) : "f"(value.y), "f"(value.x));
+    asm volatile ("cvt.rn.satfinite.e4m3x2.f32 %0, %1, %2;" : "=h"(hi) : "f"(value.w), "f"(value.z));
+    return uint32_t(lo) | (uint32_t(hi) << 16);
 }
 
 __device__ __forceinline__
@@ -269,6 +352,16 @@ static void unrolled_loop(F &&lambda) {
         (lambda.template operator()<Is>(), ...);
     };
     call(std::make_integer_sequence<int, cnt>());
+}
+
+// int2float is slow on sm_80 and before
+// val in [-4194304, 4194303]
+__device__ __forceinline__
+static float int2float_fast(int val) {
+    float fval;
+    // fval = (val & 0x7FFFFF) ^ 0x4B400000
+    asm volatile ("lop3.b32 %0, %1, %2, %3, %4;" : "=f"(fval) : "r"(val), "n"(0x7FFFFF), "n"(0x4B400000), "n"((0xF0 & 0xCC) ^ 0xAA));
+    return fval - 12582912.0f;
 }
 
 };  // namespace nunchaku::kernels

@@ -1,31 +1,15 @@
+# convert the diffusers lora to nunchaku format
 """Convert LoRA weights to Nunchaku format."""
 
-import argparse
-import os
 import typing as tp
 
-import safetensors
-import safetensors.torch
 import torch
 import tqdm
 
+from ...utils import ceil_divide, filter_state_dict, load_state_dict_in_safetensors
+
+
 # region utilities
-
-
-def ceil_divide(x: int, divisor: int) -> int:
-    """Ceiling division.
-
-    Args:
-        x (`int`):
-            dividend.
-        divisor (`int`):
-            divisor.
-
-    Returns:
-        `int`:
-            ceiling division result.
-    """
-    return (x + divisor - 1) // divisor
 
 
 def pad(
@@ -63,32 +47,6 @@ def update_state_dict(
         assert lkey not in lhs, f"Key {lkey} already exists in the state dict."
         lhs[lkey] = value
     return lhs
-
-
-def load_state_dict_in_safetensors(
-    path: str, device: str | torch.device = "cpu", filter_prefix: str = ""
-) -> dict[str, torch.Tensor]:
-    """Load state dict in SafeTensors.
-
-    Args:
-        path (`str`):
-            file path.
-        device (`str` | `torch.device`, optional, defaults to `"cpu"`):
-            device.
-        filter_prefix (`str`, optional, defaults to `""`):
-            filter prefix.
-
-    Returns:
-        `dict`:
-            loaded SafeTensors.
-    """
-    state_dict = {}
-    with safetensors.safe_open(path, framework="pt", device=device) as f:
-        for k in f.keys():
-            if filter_prefix and not k.startswith(filter_prefix):
-                continue
-            state_dict[k.removeprefix(filter_prefix)] = f.get_tensor(k)
-    return state_dict
 
 
 # endregion
@@ -375,10 +333,20 @@ def convert_to_nunchaku_flux_transformer_block_lowrank_dict(
 
 
 def convert_to_nunchaku_flux_lowrank_dict(
-    orig_state_dict: dict[str, torch.Tensor],
-    extra_lora_dict: dict[str, torch.Tensor],
+    base_model: dict[str, torch.Tensor] | str,
+    lora: dict[str, torch.Tensor] | str,
     default_dtype: torch.dtype = torch.bfloat16,
 ) -> dict[str, torch.Tensor]:
+    if isinstance(base_model, str):
+        orig_state_dict = load_state_dict_in_safetensors(base_model)
+    else:
+        orig_state_dict = base_model
+
+    if isinstance(lora, str):
+        extra_lora_dict = load_state_dict_in_safetensors(lora, filter_prefix="transformer.")
+    else:
+        extra_lora_dict = filter_state_dict(lora, filter_prefix="transformer.")
+
     block_names: set[str] = set()
     for param_name in orig_state_dict.keys():
         if param_name.startswith(("transformer_blocks.", "single_transformer_blocks.")):
@@ -403,43 +371,3 @@ def convert_to_nunchaku_flux_lowrank_dict(
             prefix=block_name,
         )
     return converted
-
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--quant-path", type=str, required=True, help="path to the quantized model safetensor file")
-    parser.add_argument("--lora-path", type=str, required=True, help="path to LoRA weights safetensor file")
-    parser.add_argument("--output-root", type=str, default="", help="root to the output safetensor file")
-    parser.add_argument("--lora-name", type=str, default=None, help="name of the LoRA weights")
-    parser.add_argument(
-        "--dtype",
-        type=str,
-        default="bfloat16",
-        choices=["bfloat16", "float16"],
-        help="data type of the converted weights",
-    )
-    args = parser.parse_args()
-
-    if not args.output_root:
-        # output to the parent directory of the quantized model safetensor file
-        args.output_root = os.path.dirname(args.quant_path)
-    if args.lora_name is None:
-        assert args.lora_path is not None, "LoRA name or path must be provided"
-        lora_name = args.lora_path.rstrip(os.sep).split(os.sep)[-1].replace(".safetensors", "")
-        print(f"Lora name not provided, using {lora_name} as the LoRA name")
-    else:
-        lora_name = args.lora_name
-    assert lora_name, "LoRA name must be provided."
-
-    assert args.quant_path.endswith(".safetensors"), "Quantized model must be a safetensor file"
-    assert args.lora_path.endswith(".safetensors"), "LoRA weights must be a safetensor file"
-    orig_state_dict = load_state_dict_in_safetensors(args.quant_path)
-    extra_lora_dict = load_state_dict_in_safetensors(args.lora_path, filter_prefix="transformer.")
-    converted = convert_to_nunchaku_flux_lowrank_dict(
-        orig_state_dict=orig_state_dict,
-        extra_lora_dict=extra_lora_dict,
-        default_dtype=torch.bfloat16 if args.dtype == "bfloat16" else torch.float16,
-    )
-    os.makedirs(args.output_root, exist_ok=True)
-    safetensors.torch.save_file(converted, os.path.join(args.output_root, f"{lora_name}.safetensors"))
-    print(f"Saved LoRA weights to {args.output_root}.")

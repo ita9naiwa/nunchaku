@@ -28,7 +28,10 @@ namespace nunchaku::ops {
         std::optional<torch::Tensor> out_linearattn,// linear     [B, (M), N / 3]
         bool act_unsigned,
         std::vector<float> lora_scales,
-        bool fuse_silu
+        bool fuse_silu,
+        bool fp4,
+        float alpha,
+        std::optional<torch::Tensor> wcscales
     ) {
         spdlog::trace("running gemm_w4a4: ");
 
@@ -63,7 +66,10 @@ namespace nunchaku::ops {
             getTensor(out_linearattn),
             act_unsigned,
             lora_scales,
-            fuse_silu
+            fuse_silu,
+            fp4,
+            alpha,
+            getTensor(wcscales)
         );
         Tensor::synchronizeDevice();
     }

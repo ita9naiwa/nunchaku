@@ -25,9 +25,15 @@ def get_pipeline(
     pipeline_init_kwargs: dict = {},
 ) -> FluxPipeline:
     if model_name == "schnell":
-        if precision == "int4":
+        if precision in ["int4", "fp4"]:
             assert torch.device(device).type == "cuda", "int4 only supported on CUDA devices"
-            transformer = NunchakuFluxTransformer2dModel.from_pretrained("mit-han-lab/svdq-int4-flux.1-schnell")
+            if precision == "int4":
+                transformer = NunchakuFluxTransformer2dModel.from_pretrained("mit-han-lab/svdq-int4-flux.1-schnell")
+            else:
+                assert precision == "fp4"
+                transformer = NunchakuFluxTransformer2dModel.from_pretrained(
+                    "/home/muyang/nunchaku_models/flux.1-schnell-nvfp4-svdq-gptq", precision="fp4"
+                )
             pipeline_init_kwargs["transformer"] = transformer
             if use_qencoder:
                 from nunchaku.models.text_encoder import NunchakuT5EncoderModel

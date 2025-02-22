@@ -64,7 +64,7 @@ public:
     };
 
 public:
-    GEMM_W4A4(int in_features, int out_features, bool bias, Tensor::ScalarType dtype, Device device);
+    GEMM_W4A4(int in_features, int out_features, bool bias, bool use_fp4, Tensor::ScalarType dtype, Device device);
     Tensor forward(Tensor x);
     Tensor forward_silu(Tensor x);
     std::variant<Tensor, QuantizedActivation> forward(Tensor x, FuseOptions fuse, GEMM_W4A4 *nextGEMM = nullptr);
@@ -80,6 +80,7 @@ public:
     const int out_features;
     const int in_features_pad;
     const int out_features_pad;
+    const bool use_fp4;
     
     int lora_rank;
     std::vector<float> lora_scales; // every 16 ranks share a scale
@@ -98,6 +99,9 @@ public:
     Tensor lora_up;
 
     Tensor smooth;
+
+    Tensor wtscale;
+    Tensor wcscales;
 
     cublasHandle_t handle;
 };

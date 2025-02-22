@@ -117,6 +117,8 @@ void SafeTensors::parseHeader() {
         { "I8",   Tensor::INT8  },
         { "I32",  Tensor::INT32 },
         { "I64",  Tensor::INT64 },
+        { "F8_E4M3", Tensor::FP8_E4M3 },
+        { "F8_E5M2", Tensor::FP8_E5M2 },
     };
 
     auto check = [](bool cond, std::source_location location = std::source_location::current()) {

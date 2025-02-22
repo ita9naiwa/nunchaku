@@ -1,0 +1,16 @@
+[project]
+name = "svdquant"
+description = "SVDQuant ComfyUI Node. SVDQuant is a new post-training training quantization paradigm for diffusion models, which quantize both the weights and activations of FLUX.1 to 4 bits, achieving 3.5× memory and 8.7× latency reduction on a 16GB laptop 4090 GPU."
+version = "0.1.1"
+license = { file = "LICENSE.txt" }
+dependencies = []
+requires-python = ">=3.11, <3.13"
+
+[project.urls]
+Repository = "https://github.com/mit-han-lab/nunchaku"
+#  Used by Comfy Registry https://comfyregistry.org
+
+[tool.comfy]
+PublisherId = "lmxyy1999"
+DisplayName = "svdquant"
+Icon = "https://raw.githubusercontent.com/mit-han-lab/nunchaku/bfd9aa3ae84f51a26414f1600d725a0098472820/assets/logo.svg"

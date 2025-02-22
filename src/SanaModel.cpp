@@ -8,11 +8,11 @@
 using spdlog::fmt_lib::format;
 using namespace nunchaku;
 
-SanaLinearAttention::SanaLinearAttention(int dim, bool bias, bool pag, Tensor::ScalarType dtype, Device device) :
+SanaLinearAttention::SanaLinearAttention(int dim, bool bias, bool pag, bool use_fp4, Tensor::ScalarType dtype, Device device) :
     dim(dim),
     dim_pad(ceilDiv(dim, 128) * 128),
-    qkv_proj(dim, dim_pad * 3, bias, dtype, device),
-    out_proj(dim_pad, dim, bias, dtype, device),
+    qkv_proj(dim, dim_pad * 3, bias, use_fp4, dtype, device),
+    out_proj(dim_pad, dim, bias, use_fp4, dtype, device),
     pag_to_v(std::nullopt)
 {
     registerChildren
@@ -21,7 +21,7 @@ SanaLinearAttention::SanaLinearAttention(int dim, bool bias, bool pag, Tensor::S
     ;
 
     if (pag) {
-        pag_to_v.emplace(dim, dim_pad, bias, dtype, device);
+        pag_to_v.emplace(dim, dim_pad, bias, use_fp4, dtype, device);
         registerChildren(pag_to_v.value(), "pag_to_v");
     }
 }
@@ -63,7 +63,11 @@ Tensor SanaLinearAttention::forward(Tensor x, Tensor out) {
         qkv_proj.wscales, 
         {}, {}, qact.lora_act, qkv_proj.lora_up, {}, {}, {}, {}, {}, qkv_proj.bias, {}, 
         vk, q, 
-        qact.is_unsigned, qkv_proj.lora_scales, false);
+        qact.is_unsigned, qkv_proj.lora_scales, false,
+        qkv_proj.use_fp4,
+        *qkv_proj.wtscale.data_ptr<float>(),
+        qkv_proj.wcscales.numel() > 0 ? qkv_proj.wcscales : Tensor{}
+        );
 
     debug("vk", vk);
     debug("q", q);
@@ -121,11 +125,11 @@ Tensor SanaLinearAttention::forward_pag(Tensor x, bool cfg) {
     return out;
 }   
 
-MultiHeadCrossAttention::MultiHeadCrossAttention(int num_heads, int head_dim, Tensor::ScalarType dtype, Device device) :
+MultiHeadCrossAttention::MultiHeadCrossAttention(int num_heads, int head_dim, bool use_fp4, Tensor::ScalarType dtype, Device device) :
     num_heads(num_heads), head_dim(head_dim),
-    q_linear(num_heads * head_dim, num_heads * head_dim, true, dtype, device),
+    q_linear(num_heads * head_dim, num_heads * head_dim, true, use_fp4, dtype, device),
     kv_linear(num_heads * head_dim, num_heads * head_dim * 2, true, dtype, device),
-    out_proj(num_heads * head_dim, num_heads * head_dim, true, dtype, device)
+    out_proj(num_heads * head_dim, num_heads * head_dim, true, use_fp4, dtype, device)
 {
     registerChildren
         (q_linear, "q_linear")
@@ -173,11 +177,11 @@ Tensor MultiHeadCrossAttention::forward(Tensor x, Tensor cond, Tensor cu_seqlens
     return out_proj.forward(attn_output);
 }
 
-SanaGLUMBConv::SanaGLUMBConv(int in_features, int hidden_features, Tensor::ScalarType dtype, Device device) : 
+SanaGLUMBConv::SanaGLUMBConv(int in_features, int hidden_features, bool use_fp4, Tensor::ScalarType dtype, Device device) : 
     in_features(in_features), hidden_features(hidden_features),
-    inverted_conv(in_features, hidden_features * 2, true, dtype, device),
+    inverted_conv(in_features, hidden_features * 2, true, use_fp4, dtype, device),
     depth_conv(hidden_features * 2, true, dtype, device),
-    point_conv(hidden_features, in_features, false, dtype, device)
+    point_conv(hidden_features, in_features, false, use_fp4, dtype, device)
 {
     registerChildren
         (inverted_conv, "inverted_conv")
@@ -200,11 +204,11 @@ Tensor SanaGLUMBConv::forward(Tensor x, int H, int W) {
     return point_conv.forward_quant(qact);
 }
 
-SanaLinearTransformerBlock::SanaLinearTransformerBlock(int hidden_size, int intermediate_size, int num_cross_attention_heads, bool pag, Tensor::ScalarType dtype, Device device) : 
+SanaLinearTransformerBlock::SanaLinearTransformerBlock(int hidden_size, int intermediate_size, int num_cross_attention_heads, bool pag, bool use_fp4, Tensor::ScalarType dtype, Device device) : 
     hidden_size(hidden_size), num_cross_attention_heads(num_cross_attention_heads),
-    attn(hidden_size, false, pag, dtype, device),
-    cross_attn(num_cross_attention_heads, hidden_size / num_cross_attention_heads, dtype, device),
-    ff(hidden_size, intermediate_size, dtype, device),
+    attn(hidden_size, false, pag, use_fp4, dtype, device),
+    cross_attn(num_cross_attention_heads, hidden_size / num_cross_attention_heads, use_fp4, dtype, device),
+    ff(hidden_size, intermediate_size, use_fp4, dtype, device),
     norm1(hidden_size, 1e-6, false, dtype, device),
     norm2(hidden_size, 1e-6, false, dtype, device)
 {
@@ -313,6 +317,7 @@ SanaModel::SanaModel(SanaConfig config, Tensor::ScalarType dtype, Device device)
             ceilDiv(int(round(config.expand_ratio * inner_dim)), 64) * 64,
             config.num_cross_attention_heads,
             std::find(config.pag_layers.begin(), config.pag_layers.end(), i) != config.pag_layers.end(),
+            config.use_fp4,
             dtype, device
         ));
         registerChildren(*transformer_blocks.back(), format("transformer_blocks.{}", i));

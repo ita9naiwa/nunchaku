@@ -319,10 +319,10 @@ public:
         int warpId = threadIdx.x / WARP_SIZE;
     #pragma unroll
         for (int i = 0; i < WARP_M_TILES; i++) {
-            if (pred) {
+            //if (pred) {
                 // out[i] = load(&act[((warpId * WARP_M_TILES + i) * K / WARP_K + k) * WARP_SIZE + laneId]);
-                out[i] = load(&act[((k * NUM_WARPS + warpId) * WARP_M_TILES + i) * WARP_SIZE + laneId]);
-            }
+                out[i] = load_pred(&act[((k * NUM_WARPS + warpId) * WARP_M_TILES + i) * WARP_SIZE + laneId], pred);
+            //}
         }
     }
 
@@ -336,12 +336,12 @@ public:
         // int offset = K / WARP_K * WARP_SIZE;
     #pragma unroll
         for (int i = 0; i < WARP_N_TILES; i++) {
-            if (pred) {
+            //if (pred) {
                 // out[i] = load(&wgt[(i * K / WARP_K + k) * WARP_SIZE + laneId]);
                 // out[i] = load(&wgt[(i + k * WARP_N_TILES) * WARP_SIZE + laneId]);
-                out[i] = load(&ptr[i * WARP_SIZE]);
+                out[i] = load_pred(&ptr[i * WARP_SIZE], pred);
                 // ptr += offset;
-            }
+            //}
         }
     }
 
@@ -352,11 +352,11 @@ public:
         int warpId = threadIdx.x / WARP_SIZE;
     #pragma unroll
         for (int i = 0; i < ASCALES_NUM_PACKS; i++) {
-            if (pred && laneId < ASCALES_VALID_LANES) {
+            // if (pred && laneId < ASCALES_VALID_LANES) {
                 // out[i] = ascales[(group * M / WARP_M + warpId) * ASCALES_VALID_LANES * ASCALES_NUM_PACKS + i * ASCALES_VALID_LANES + laneId];
-                out[i] = ascales[(group * NUM_WARPS + warpId) * ASCALES_NUM_PACKS * ASCALES_VALID_LANES + i * ASCALES_VALID_LANES + laneId];
+                out[i] = load_pred(&ascales[(group * NUM_WARPS + warpId) * ASCALES_NUM_PACKS * ASCALES_VALID_LANES + i * ASCALES_VALID_LANES + laneId], pred && laneId < ASCALES_VALID_LANES);
 
-            }
+            // }
         }
     }
 
@@ -373,13 +373,13 @@ public:
 
     #pragma unroll
         for (int i = 0; i < WSCALES_NUM_PACKS; i++) {
-            if (pred && laneId < WSCALES_VALID_LANES) {
+            // if (pred && laneId < WSCALES_VALID_LANES) {
                 
                 // out[i] = wscales[group * N / WARP_N * WSCALES_VALID_LANES * WSCALES_NUM_PACKS + i * WSCALES_VALID_LANES + laneId];
                 // out[i] = load(&wscales[group * N / WARP_N * WSCALES_VALID_LANES * WSCALES_NUM_PACKS + i * WSCALES_VALID_LANES + laneId]);
-                out[i] = load(&wscales[(group * WSCALES_NUM_PACKS + i) * WSCALES_VALID_LANES + laneId]);
+                out[i] = load_pred(&wscales[(group * WSCALES_NUM_PACKS + i) * WSCALES_VALID_LANES + laneId], pred && laneId < WSCALES_VALID_LANES);
                 // out[i] = load(&ptr[i * WSCALES_VALID_LANES]);
-            }
+            // }
         }
     }
 
@@ -400,7 +400,7 @@ public:
         return __shfl_sync(~0, block[packIdx].data[elementIdx], srcLane);
     }
 
-    template<typename F>
+    template<bool FAST_I2F = false, typename F>
     __device__ __forceinline__
     static void apply_scales(F &&getpsum, ascale_warp ascale, wscale_warp wscale, fpsum_warp &fpsum) {
         const int laneId = threadIdx.x % WARP_SIZE;
@@ -429,12 +429,31 @@ public:
                     
                 //     printf("before ws2 = %f %f fsum.data[%d] = %f %f\n", (float)ws2.x, (float)ws2.y, target, (float)fsum.data[target].x, (float)fsum.data[target].y);
                 // }
-                
-                fsum.data[0] = __hfma2(float22half2<half2_t>(make_float2(__int2float_rn(psum.data[0]), __int2float_rn(psum.data[1]))), __hmul2(asx[i], ws1), fsum.data[0]);
-                fsum.data[1] = __hfma2(float22half2<half2_t>(make_float2(__int2float_rn(psum.data[2]), __int2float_rn(psum.data[3]))), __hmul2(asy[i], ws1), fsum.data[1]);
-                fsum.data[2] = __hfma2(float22half2<half2_t>(make_float2(__int2float_rn(psum.data[4]), __int2float_rn(psum.data[5]))), __hmul2(asx[i], ws2), fsum.data[2]);
-                fsum.data[3] = __hfma2(float22half2<half2_t>(make_float2(__int2float_rn(psum.data[6]), __int2float_rn(psum.data[7]))), __hmul2(asy[i], ws2), fsum.data[3]);
 
+                auto scale_fma_normal = [&]() ALWAYSINLINE {
+                    fsum.data[0] = __hfma2(float22half2<half2_t>(make_float2(__int2float_rn(psum.data[0]), __int2float_rn(psum.data[1]))), __hmul2(asx[i], ws1), fsum.data[0]);
+                    fsum.data[1] = __hfma2(float22half2<half2_t>(make_float2(__int2float_rn(psum.data[2]), __int2float_rn(psum.data[3]))), __hmul2(asy[i], ws1), fsum.data[1]);
+                    fsum.data[2] = __hfma2(float22half2<half2_t>(make_float2(__int2float_rn(psum.data[4]), __int2float_rn(psum.data[5]))), __hmul2(asx[i], ws2), fsum.data[2]);
+                    fsum.data[3] = __hfma2(float22half2<half2_t>(make_float2(__int2float_rn(psum.data[6]), __int2float_rn(psum.data[7]))), __hmul2(asy[i], ws2), fsum.data[3]);
+                };
+
+                // should be faster on sm_80
+                auto scale_fma_fast = [&]() ALWAYSINLINE {
+                    fsum.data[0] = __hfma2(float22half2<half2_t>(make_float2(int2float_fast(psum.data[0]), int2float_fast(psum.data[1]))), __hmul2(asx[i], ws1), fsum.data[0]);
+                    fsum.data[1] = __hfma2(float22half2<half2_t>(make_float2(int2float_fast(psum.data[2]), int2float_fast(psum.data[3]))), __hmul2(asy[i], ws1), fsum.data[1]);
+                    fsum.data[2] = __hfma2(float22half2<half2_t>(make_float2(int2float_fast(psum.data[4]), int2float_fast(psum.data[5]))), __hmul2(asx[i], ws2), fsum.data[2]);
+                    fsum.data[3] = __hfma2(float22half2<half2_t>(make_float2(int2float_fast(psum.data[6]), int2float_fast(psum.data[7]))), __hmul2(asy[i], ws2), fsum.data[3]);
+                };
+            
+            #if defined(__CUDA_ARCH__) && __CUDA_ARCH__ <= 800
+                if constexpr (FAST_I2F) {
+                    scale_fma_fast();
+                } else {
+                    scale_fma_normal();
+                }
+            #else
+                scale_fma_normal();
+            #endif
                 // if (threadIdx.x == 3 && j == 1 && i == 0) {
                 //     printf("before ws2 = %f %f fsum.data[%d] = %f %f\n", (float)ws2.x, (float)ws2.y, target, (float)fsum.data[target].x, (float)fsum.data[target].y);
                 // }
@@ -575,9 +594,9 @@ public:
                     (plugins(i * INSN_M + row, pack), ...);
 
                     bool pred = i * INSN_M + row < maxRows && laneId * PACK_SIZE < maxCols;
-                    if (pred) {
-                        store(reinterpret_cast<pack_t *>(&output[(i * INSN_M + row) * stride + laneId * PACK_SIZE]), pack);
-                    }
+                    // if (pred) {
+                    store_pred(reinterpret_cast<pack_t *>(&output[(i * INSN_M + row) * stride + laneId * PACK_SIZE]), pack, pred);
+                    // }
                 }
                 __syncwarp();
 
@@ -602,9 +621,9 @@ public:
                     (plugins(i * INSN_M + 8 + row, pack), ...);
 
                     bool pred = i * INSN_M + 8 + row < maxRows && laneId * PACK_SIZE < maxCols;
-                    if (pred) {
-                        store(reinterpret_cast<pack_t *>(&output[(i * INSN_M + 8 + row) * stride + laneId * PACK_SIZE]), pack);
-                    }
+                    // if (pred) {
+                    store_pred(reinterpret_cast<pack_t *>(&output[(i * INSN_M + 8 + row) * stride + laneId * PACK_SIZE]), pack, pred);
+                    // }
                 }
                 __syncwarp();
             }
@@ -680,33 +699,61 @@ public:
         }
     };
 
+    template<bool USE_BIAS = true, bool USE_SCALE = false>
     struct EpilogueBias {
         struct Arguments {
             const packed_wscale_t *bias;  // [N / BLOCK_N, WSCALES_NUM_PACKS, WSCALES_VALID_LANES] of packed_wscale_t
+            const packed_wscale_t *scale;
         };
 
         __device__ __forceinline__
-        void apply_bias(fpsum_warp &fpsum, int M, int N, int K, const packed_wscale_t *bias) {
+        void apply_bias(fpsum_warp &fpsum, int M, int N, int K, const packed_wscale_t *bias, const packed_wscale_t *scale) {
             const int laneId = threadIdx.x % WARP_SIZE;
 
             // if (laneId == 0) {
             //     printf("block.x=%d block.y=%d warpId=%d bias=%p\n", blockIdx.x, blockIdx.y, threadIdx.x / WARP_SIZE, bias);
             // }
 
-            wscale_warp b;
-            load_wscale(bias, 0, N, b, true);
+            wscale_warp b, s;
+            if constexpr (USE_BIAS) {
+                load_wscale(bias, 0, N, b, true);
+            }
+            if constexpr (USE_SCALE) {
+                load_wscale(scale, 0, N, s, true);
+            }
 
             for (int j = 0; j < WARP_N_TILES; j++) {
-                half2_t b1 = broadcast_wscale(b, j * 4, laneId);
-                half2_t b2 = broadcast_wscale(b, j * 4 + 2, laneId);
+                half2_t b1, b2;
+                half2_t s1, s2;
+                if constexpr (USE_BIAS) {
+                    b1 = broadcast_wscale(b, j * 4, laneId);
+                    b2 = broadcast_wscale(b, j * 4 + 2, laneId);
+                }
+                if constexpr (USE_SCALE) {
+                    s1 = broadcast_wscale(s, j * 4, laneId);
+                    s2 = broadcast_wscale(s, j * 4 + 2, laneId);
+                }
+                
 
                 for (int i = 0; i < WARP_M_TILES; i++) {
                     auto &fsum = fpsum[i * WARP_N_TILES + j];
 
-                    fsum.data[0] = __hadd2(fsum.data[0], b1);
-                    fsum.data[1] = __hadd2(fsum.data[1], b1);
-                    fsum.data[2] = __hadd2(fsum.data[2], b2);
-                    fsum.data[3] = __hadd2(fsum.data[3], b2);
+                    if constexpr (USE_SCALE && USE_BIAS) {
+                        fsum.data[0] = __hfma2(fsum.data[0], s1, b1);
+                        fsum.data[1] = __hfma2(fsum.data[1], s1, b1);
+                        fsum.data[2] = __hfma2(fsum.data[2], s2, b2);
+                        fsum.data[3] = __hfma2(fsum.data[3], s2, b2);
+                    } else if constexpr (USE_SCALE) {
+                        fsum.data[0] = __hmul2(fsum.data[0], s1);
+                        fsum.data[1] = __hmul2(fsum.data[1], s1);
+                        fsum.data[2] = __hmul2(fsum.data[2], s2);
+                        fsum.data[3] = __hmul2(fsum.data[3], s2);
+                    } else if constexpr (USE_BIAS) {
+                        fsum.data[0] = __hadd2(fsum.data[0], b1);
+                        fsum.data[1] = __hadd2(fsum.data[1], b1);
+                        fsum.data[2] = __hadd2(fsum.data[2], b2);
+                        fsum.data[3] = __hadd2(fsum.data[3], b2);
+                    }
                 }
             }
         }
@@ -714,10 +761,13 @@ public:
         __device__ __forceinline__
         void operator()(const BlockInfo binfo, fpsum_warp &fpsum, int M, int N, int K, Arguments args) {
             const int bn = binfo.bn;
-            apply_bias(
-                fpsum, M, N, K,
-                args.bias + bn * WSCALES_NUM_PACKS * WSCALES_VALID_LANES
-            );
+            if constexpr (USE_BIAS || USE_SCALE) {
+                apply_bias(
+                    fpsum, M, N, K,
+                    args.bias + bn * WSCALES_NUM_PACKS * WSCALES_VALID_LANES,
+                    args.scale + bn * WSCALES_NUM_PACKS * WSCALES_VALID_LANES
+                );
+            }
         }
     };
 
@@ -797,7 +847,8 @@ public:
     using typename Base::unpack_fpsum;  \
     using typename Base::EpilogueDefault;   \
     using typename Base::EpilogueNop;   \
-    using typename Base::EpilogueBias;
+    template<bool USE_BIAS, bool USE_SCALE> \
+    using EpilogueBias = typename Base::EpilogueBias<USE_BIAS, USE_SCALE>;
 
 
 template<typename kernel, typename ...T>

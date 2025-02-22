@@ -100,9 +100,9 @@ void gemm_w8a8(Tensor act,      // [M, K]
 
         // append EpilgoueNop to workaround mismatched memory layout of std::tuple between device and host code on Windows
         // ** sizeof(std::tuple<std::tuple<int>>) == 8 on device **
-        using Epilogue = GEMM::EpilogueCombination<GEMM::EpilogueBias, NextEpilogue, GEMM::EpilogueNop>;
+        using Epilogue = GEMM::EpilogueCombination<GEMM::EpilogueBias<true, false>, NextEpilogue, GEMM::EpilogueNop>;
         return launch.template operator()<Epilogue>({
-            GEMM::EpilogueBias::Arguments{
+            GEMM::EpilogueBias<true, false>::Arguments{
                 .bias = bias.data_ptr<GEMM::packed_wscale_t>(),
             },
             nextArgs,

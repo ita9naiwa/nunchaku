@@ -36,9 +36,23 @@ void gemm_w4a4(
     Tensor out_linearattn,// linear     [B, (M), N / 3]
     bool act_unsigned,
     std::vector<float> lora_scales,  // [R / 16]
-    bool fuse_silu
+    bool fuse_silu,
+    bool fp4,
+    float alpha,
+    Tensor wcscales
 ) {
-    invoke_launch(ascales.dtype(), [&]<typename Config>() {
+    Tensor::ScalarType dtype = Tensor::INVALID_SCALAR_TYPE;
+    if (!fp4) {
+        dtype = ascales.dtype();
+    } else {
+        for (auto tensor : {out, bias, lora_up, lora_down, poolout, wcscales}) {
+            if (tensor.valid()) {
+                assert(dtype == Tensor::INVALID_SCALAR_TYPE || dtype == tensor.dtype());
+                dtype = tensor.dtype();
+            }
+        }
+    }
+    invoke_launch(dtype, [&]<typename Config>() {
         GEMM_W4A4_Launch<Config>::gemm_w4a4(
             act,           
             wgt,           
@@ -61,7 +75,10 @@ void gemm_w4a4(
             out_linearattn, 
             act_unsigned,
             lora_scales,
-            fuse_silu
+            fuse_silu,
+            fp4,
+            alpha,
+            wcscales
         );
     });
 }
@@ -72,10 +89,10 @@ void linearattn_vk_mul_q(Tensor q, Tensor vk) {
     });
 }
 
-void quantize_w4a4_act_fuse_lora(Tensor input, Tensor output, Tensor oscales, Tensor lora_down, Tensor lora_act_out, Tensor smooth, bool fuse_glu) {
+void quantize_w4a4_act_fuse_lora(Tensor input, Tensor output, Tensor oscales, Tensor lora_down, Tensor lora_act_out, Tensor smooth, bool fuse_glu, bool fp4) {
     invoke_launch(input.dtype(), [&]<typename Config>() {
         GEMM_W4A4_Launch<Config>::quantize_w4a4_act_fuse_lora(
-            input, output, oscales, lora_down, lora_act_out, smooth, fuse_glu
+            input, output, oscales, lora_down, lora_act_out, smooth, fuse_glu, fp4
         );
     });
 }

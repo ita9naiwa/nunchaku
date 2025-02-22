@@ -9,6 +9,7 @@
 #include <memory>
 #include <source_location>
 #include <vector>
+#include <list>
 #include <stack>
 #include <map>
 #include <unordered_map>
@@ -77,6 +78,15 @@ inline cudaDeviceProp *getCurrentDeviceProperties() {
 template<typename T>
 constexpr T ceilDiv(T a, T b) {
     return (a + b - 1) / b;
+}
+
+template<typename T>
+constexpr int log2Up(T value) {
+   if (value <= 0)
+       return 0;
+   if (value == 1)
+       return 0;
+   return log2Up((value + 1) / 2) + 1;
 }
 
 struct CUBLASWrapper {

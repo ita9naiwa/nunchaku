@@ -1,5 +1,6 @@
 import torch
 from diffusers import SanaPipeline
+
 from nunchaku.models.transformer_sana import NunchakuSanaTransformer2DModel
 
 transformer = NunchakuSanaTransformer2DModel.from_pretrained("mit-han-lab/svdq-int4-sana-1600m")

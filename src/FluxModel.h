@@ -77,7 +77,7 @@ public:
     static constexpr bool USE_4BIT = true;
     using GEMM = std::conditional_t<USE_4BIT, GEMM_W4A4, GEMM_W8A8>;
 
-    FluxSingleTransformerBlock(int dim, int num_attention_heads, int attention_head_dim, int mlp_ratio, Tensor::ScalarType dtype, Device device);
+    FluxSingleTransformerBlock(int dim, int num_attention_heads, int attention_head_dim, int mlp_ratio, bool use_fp4, Tensor::ScalarType dtype, Device device);
     Tensor forward(Tensor hidden_states, Tensor temb, Tensor rotary_emb);
 
 public:
@@ -101,7 +101,7 @@ public:
     static constexpr bool USE_4BIT = true;
     using GEMM = std::conditional_t<USE_4BIT, GEMM_W4A4, GEMM_W8A8>;
 
-    JointTransformerBlock(int dim, int num_attention_heads, int attention_head_dim, bool context_pre_only, Tensor::ScalarType dtype, Device device);
+    JointTransformerBlock(int dim, int num_attention_heads, int attention_head_dim, bool context_pre_only, bool use_fp4, Tensor::ScalarType dtype, Device device);
     std::tuple<Tensor, Tensor> forward(Tensor hidden_states, Tensor encoder_hidden_states, Tensor temb, Tensor rotary_emb, Tensor rotary_emb_context, float sparsityRatio);
 
 public:
@@ -128,7 +128,7 @@ private:
 
 class FluxModel : public Module {
 public:
-    FluxModel(Tensor::ScalarType dtype, Device device);
+    FluxModel(bool use_fp4, Tensor::ScalarType dtype, Device device);
     Tensor forward(Tensor hidden_states, Tensor encoder_hidden_states, Tensor temb, Tensor rotary_emb_img, Tensor rotary_emb_context, Tensor rotary_emb_single);
 public:
     std::vector<std::unique_ptr<JointTransformerBlock>> transformer_blocks;

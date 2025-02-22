@@ -4,12 +4,13 @@ import diffusers
 import torch
 from diffusers import FluxTransformer2DModel
 from diffusers.configuration_utils import register_to_config
-from huggingface_hub import hf_hub_download, utils
+from huggingface_hub import utils
 from packaging.version import Version
 from torch import nn
 
 from .utils import NunchakuModelLoaderMixin, pad_tensor
 from .._C import QuantizedFluxModel, utils as cutils
+from ..utils import fetch_or_download
 
 SVD_RANK = 32
 
@@ -106,13 +107,12 @@ class EmbedND(nn.Module):
         return emb.unsqueeze(1)
 
 
-def load_quantized_module(path: str, device: str | torch.device = "cuda") -> QuantizedFluxModel:
+def load_quantized_module(path: str, device: str | torch.device = "cuda", use_fp4: bool = False) -> QuantizedFluxModel:
     device = torch.device(device)
     assert device.type == "cuda"
-
     m = QuantizedFluxModel()
     cutils.disable_memory_auto_release()
-    m.init(True, 0 if device.index is None else device.index)
+    m.init(use_fp4, True, 0 if device.index is None else device.index)
     m.load(path)
     return m
 
@@ -151,16 +151,15 @@ class NunchakuFluxTransformer2dModel(FluxTransformer2DModel, NunchakuModelLoader
     @utils.validate_hf_hub_args
     def from_pretrained(cls, pretrained_model_name_or_path: str | os.PathLike, **kwargs):
         device = kwargs.get("device", "cuda")
+        precision = kwargs.get("precision", "int4")
+        assert precision in ["int4", "fp4"]
         transformer, transformer_block_path = cls._build_model(pretrained_model_name_or_path, **kwargs)
-        m = load_quantized_module(transformer_block_path, device=device)
+        m = load_quantized_module(transformer_block_path, device=device, use_fp4=precision == "fp4")
         transformer.inject_quantized_module(m, device)
         return transformer
 
     def update_lora_params(self, path: str):
-        if not os.path.exists(path):
-            hf_repo_id = os.path.dirname(path)
-            filename = os.path.basename(path)
-            path = hf_hub_download(repo_id=hf_repo_id, filename=filename)
+        path = fetch_or_download(path)
         block = self.transformer_blocks[0]
         assert isinstance(block, NunchakuFluxTransformerBlocks)
         block.m.load(path, True)

@@ -11,6 +11,7 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
     py::class_<QuantizedFluxModel>(m, "QuantizedFluxModel")
         .def(py::init<>())
         .def("init", &QuantizedFluxModel::init,
+            py::arg("use_fp4"),
             py::arg("bf16"),
             py::arg("deviceId")
         )
@@ -33,6 +34,7 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
         .def("init", &QuantizedSanaModel::init,
             py::arg("config"),
             py::arg("pag_layers"),
+            py::arg("use_fp4"),
             py::arg("bf16"),
             py::arg("deviceId")
         )

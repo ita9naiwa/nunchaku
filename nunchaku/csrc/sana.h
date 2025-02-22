@@ -8,7 +8,7 @@
 
 class QuantizedSanaModel : public ModuleWrapper<SanaModel> {
 public:
-    void init(pybind11::dict config, std::vector<int> pag_layers, bool bf16, int8_t deviceId) {
+    void init(pybind11::dict config, std::vector<int> pag_layers, bool use_fp4, bool bf16, int8_t deviceId) {
         spdlog::info("Initializing QuantizedSanaModel");
         SanaConfig cfg{
             .num_layers = config["num_layers"].cast<int>(),
@@ -17,6 +17,7 @@ public:
             .num_cross_attention_heads = config["num_cross_attention_heads"].cast<int>(),
             .expand_ratio = config["mlp_ratio"].cast<double>(),
             .pag_layers = pag_layers,
+            .use_fp4 = use_fp4,
         };
         net = std::make_unique<SanaModel>(cfg, bf16 ? Tensor::BF16 : Tensor::FP16, Device::cuda((int)deviceId));
     }

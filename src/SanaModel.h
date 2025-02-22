@@ -7,7 +7,7 @@
 
 class SanaLinearAttention : public Module {
 public:
-    SanaLinearAttention(int dim, bool bias, bool pag, Tensor::ScalarType dtype, Device device);
+    SanaLinearAttention(int dim, bool bias, bool pag, bool use_fp4, Tensor::ScalarType dtype, Device device);
 
     Tensor forward(Tensor x, Tensor out = {});
     Tensor forward_pag(Tensor x, bool cfg);
@@ -25,7 +25,7 @@ private:
 
 class MultiHeadCrossAttention : public Module {
 public:
-    MultiHeadCrossAttention(int num_heads, int head_dim, Tensor::ScalarType dtype, Device device);
+    MultiHeadCrossAttention(int num_heads, int head_dim, bool use_fp4, Tensor::ScalarType dtype, Device device);
 
     Tensor forward(Tensor x, Tensor cond, Tensor cu_seqlens_img, Tensor cu_seqlens_txt);
 
@@ -41,7 +41,7 @@ private:
 
 class SanaGLUMBConv : public Module {
 public:
-    SanaGLUMBConv(int in_features, int hidden_features, Tensor::ScalarType dtype, Device device);
+    SanaGLUMBConv(int in_features, int hidden_features, bool use_fp4, Tensor::ScalarType dtype, Device device);
 
     Tensor forward(Tensor x, int H, int W);
 
@@ -57,7 +57,7 @@ private:
 
 class SanaLinearTransformerBlock : public Module {
 public:
-    SanaLinearTransformerBlock(int hidden_size, int intermediate_size, int num_cross_attention_heads, bool pag, Tensor::ScalarType dtype, Device device);
+    SanaLinearTransformerBlock(int hidden_size, int intermediate_size, int num_cross_attention_heads, bool pag, bool use_fp4, Tensor::ScalarType dtype, Device device);
 
     Tensor forward(Tensor hidden_states, Tensor encoder_hidden_states, Tensor timestep, Tensor cu_seqlens_img, Tensor cu_seqlens_txt, int H, int W, bool pag, bool cfg);
 
@@ -83,6 +83,7 @@ struct SanaConfig {
     int num_cross_attention_heads;
     double expand_ratio;
     std::vector<int> pag_layers;
+    bool use_fp4;
 };
 
 class SanaModel : public Module {

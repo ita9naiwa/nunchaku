@@ -27,11 +27,14 @@ void gemm_w4a4(
         Tensor out_linearattn,// linear     [B, (M), N / 3]
         bool act_unsigned,
         std::vector<float> lora_scales,  // [R / 16]
-        bool fuse_silu
+        bool fuse_silu,
+        bool fp4,
+        float alpha,
+        Tensor wcscales
 );
 void linearattn_vk_mul_q(Tensor q, Tensor vk);
 
-void quantize_w4a4_act_fuse_lora(Tensor input, Tensor output, Tensor oscales, Tensor lora_down, Tensor lora_act_out, Tensor smooth = {}, bool fuse_glu = false);
+void quantize_w4a4_act_fuse_lora(Tensor input, Tensor output, Tensor oscales, Tensor lora_down, Tensor lora_act_out, Tensor smooth = {}, bool fuse_glu = false, bool fp4 = false);
 void quantize_w4a4_act(Tensor input, Tensor output, Tensor oscales);
 void quantize_w4a4_wgt(Tensor input, Tensor output, Tensor oscales);
 
