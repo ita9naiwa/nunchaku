@@ -4,7 +4,7 @@ import unittest
 import torch
 from diffusers import DiffusionPipeline, FluxTransformer2DModel
 
-from para_attn.first_block_cache import utils
+from nunchaku.caching import utils
 
 
 def apply_cache_on_transformer(
@@ -18,8 +18,6 @@ def apply_cache_on_transformer(
     cached_transformer_blocks = torch.nn.ModuleList(
         [
             utils.CachedTransformerBlocks(
-                transformer.transformer_blocks,
-                transformer.single_transformer_blocks,
                 transformer=transformer,
                 residual_diff_threshold=residual_diff_threshold,
                 return_hidden_states_first=False,

@@ -29,6 +29,7 @@ class NunchakuFluxTransformerBlocks(nn.Module):
         encoder_hidden_states: torch.Tensor,
         image_rotary_emb: torch.Tensor,
         joint_attention_kwargs=None,
+        skip_first_layer=False,
     ):
         batch_size = hidden_states.shape[0]
         txt_tokens = encoder_hidden_states.shape[1]
@@ -57,13 +58,55 @@ class NunchakuFluxTransformerBlocks(nn.Module):
         rotary_emb_single = pad_tensor(rotary_emb_single, 256, 1)
 
         hidden_states = self.m.forward(
-            hidden_states, encoder_hidden_states, temb, rotary_emb_img, rotary_emb_txt, rotary_emb_single
+            hidden_states, encoder_hidden_states, temb, rotary_emb_img, rotary_emb_txt, rotary_emb_single, skip_first_layer
         )
 
         hidden_states = hidden_states.to(original_dtype).to(original_device)
 
         encoder_hidden_states = hidden_states[:, :txt_tokens, ...]
         hidden_states = hidden_states[:, txt_tokens:, ...]
+
+        return encoder_hidden_states, hidden_states
+
+    def forward_layer_at(
+        self,
+        idx: int,
+        hidden_states: torch.Tensor,
+        encoder_hidden_states: torch.Tensor,
+        temb: torch.Tensor,
+        image_rotary_emb: torch.Tensor,
+        joint_attention_kwargs=None,
+    ):
+        print("forward_layer_at called")
+        batch_size = hidden_states.shape[0]
+        txt_tokens = encoder_hidden_states.shape[1]
+        img_tokens = hidden_states.shape[1]
+
+        original_dtype = hidden_states.dtype
+        original_device = hidden_states.device
+
+        hidden_states = hidden_states.to(self.dtype).to(self.device)
+        encoder_hidden_states = encoder_hidden_states.to(self.dtype).to(self.device)
+        temb = temb.to(self.dtype).to(self.device)
+        image_rotary_emb = image_rotary_emb.to(self.device)
+
+        assert image_rotary_emb.ndim == 6
+        assert image_rotary_emb.shape[0] == 1
+        assert image_rotary_emb.shape[1] == 1
+        assert image_rotary_emb.shape[2] == batch_size * (txt_tokens + img_tokens)
+        # [bs, tokens, head_dim / 2, 1, 2] (sincos)
+        image_rotary_emb = image_rotary_emb.reshape([batch_size, txt_tokens + img_tokens, *image_rotary_emb.shape[3:]])
+        rotary_emb_txt = image_rotary_emb[:, :txt_tokens, ...]  # .to(self.dtype)
+        rotary_emb_img = image_rotary_emb[:, txt_tokens:, ...]  # .to(self.dtype)
+
+        rotary_emb_txt = pad_tensor(rotary_emb_txt, 256, 1)
+        rotary_emb_img = pad_tensor(rotary_emb_img, 256, 1)
+
+        hidden_states, encoder_hidden_states = self.m.forward_layer(
+                0, hidden_states, encoder_hidden_states, temb, rotary_emb_img, rotary_emb_txt)
+
+        hidden_states = hidden_states.to(original_dtype).to(original_device)
+        encoder_hidden_states = encoder_hidden_states.to(original_dtype).to(original_device)
 
         return encoder_hidden_states, hidden_states
 

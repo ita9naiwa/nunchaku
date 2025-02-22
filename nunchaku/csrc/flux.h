@@ -20,7 +20,8 @@ public:
         torch::Tensor temb,
         torch::Tensor rotary_emb_img,
         torch::Tensor rotary_emb_context,
-        torch::Tensor rotary_emb_single)
+        torch::Tensor rotary_emb_single,
+        bool skip_first_layer = false)
     {
         checkModel();
 
@@ -39,7 +40,8 @@ public:
             from_torch(temb),
             from_torch(rotary_emb_img),
             from_torch(rotary_emb_context),
-            from_torch(rotary_emb_single)
+            from_torch(rotary_emb_single),
+            skip_first_layer
         );
 
         torch::Tensor output = to_torch(result);
