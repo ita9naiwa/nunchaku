@@ -79,7 +79,7 @@ def are_two_tensors_similar(t1, t2, *, threshold, parallelized=False):
     mean_t1 = t1.abs().mean()
     diff = mean_diff / mean_t1
     print(diff.item())
-    return diff.item() < 0.2
+    return diff.item() < threshold
 
 @torch.compiler.disable
 def apply_prev_hidden_states_residual(hidden_states, encoder_hidden_states):
