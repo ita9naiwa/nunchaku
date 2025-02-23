@@ -77,7 +77,6 @@ class NunchakuFluxTransformerBlocks(nn.Module):
         image_rotary_emb: torch.Tensor,
         joint_attention_kwargs=None,
     ):
-        print("forward_layer_at called")
         batch_size = hidden_states.shape[0]
         txt_tokens = encoder_hidden_states.shape[1]
         img_tokens = hidden_states.shape[1]

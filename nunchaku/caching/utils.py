@@ -74,11 +74,9 @@ def cache_context(cache_context):
 
 @torch.compiler.disable
 def are_two_tensors_similar(t1, t2, *, threshold, parallelized=False):
-    print("Two tensors are similar??")
     mean_diff = (t1 - t2).abs().mean()
     mean_t1 = t1.abs().mean()
     diff = mean_diff / mean_t1
-    print(diff.item())
     return diff.item() < threshold
 
 @torch.compiler.disable
@@ -125,7 +123,10 @@ class CachedTransformerBlocks(torch.nn.Module):
         self.return_hidden_states_only = return_hidden_states_only
 
     def forward(self, hidden_states, encoder_hidden_states, *args, **kwargs):
-        if self.residual_diff_threshold <= 0.0:
+        batch_size = hidden_states.shape[0]
+        if self.residual_diff_threshold <= 0.0 or batch_size > 1:
+            if batch_size > 1:
+                print("Batch size > 1 currently not supported")
             for block in self.transformer_blocks:
                 hidden_states = block(hidden_states, encoder_hidden_states, *args, **kwargs)
                 if not isinstance(hidden_states, torch.Tensor):
@@ -151,9 +152,6 @@ class CachedTransformerBlocks(torch.nn.Module):
         first_transformer_block = self.transformer_blocks[0]
         encoder_hidden_states, hidden_states = first_transformer_block.forward_layer_at(
                 0, hidden_states, encoder_hidden_states, *args, **kwargs)
-        # ??
-        # if not self.return_hidden_states_first:
-        #     hidden_states, encoder_hidden_states = encoder_hidden_states, hidden_states
 
         first_hidden_states_residual = hidden_states - original_hidden_states
         del original_hidden_states
@@ -167,11 +165,12 @@ class CachedTransformerBlocks(torch.nn.Module):
         torch._dynamo.graph_break()
         if can_use_cache:
             del first_hidden_states_residual
-            print("Skipping Occurs!!?!??")
+            print("Cache hit!!!")
             hidden_states, encoder_hidden_states = apply_prev_hidden_states_residual(
                 hidden_states, encoder_hidden_states
             )
         else:
+            print("Cache miss!!!")
             set_buffer("first_hidden_states_residual", first_hidden_states_residual)
             del first_hidden_states_residual
             (
@@ -203,39 +202,10 @@ class CachedTransformerBlocks(torch.nn.Module):
                 encoder_hidden_states=encoder_hidden_states,
                 skip_first_layer=True, *args, **kwargs)
 
-        # if not self.return_hidden_states_first:
-        #     hidden_states, encoder_hidden_states = encoder_hidden_states, hidden_states
-
-        # for block in self.transformer_blocks[1:]:
-        #     hidden_states = block(hidden_states, encoder_hidden_states, *args, **kwargs)
-        #     if not isinstance(hidden_states, torch.Tensor):
-        #         hidden_states, encoder_hidden_states = hidden_states
-        #         if not self.return_hidden_states_first:
-        #             hidden_states, encoder_hidden_states = encoder_hidden_states, hidden_states
-        # if self.single_transformer_blocks is not None:
-        #     hidden_states = torch.cat([encoder_hidden_states, hidden_states], dim=1)
-        #     for block in self.single_transformer_blocks:
-        #         hidden_states = block(hidden_states, *args, **kwargs)
-        #     encoder_hidden_states, hidden_states = hidden_states.split(
-        #         [encoder_hidden_states.shape[1], hidden_states.shape[1] - encoder_hidden_states.shape[1]], dim=1
-        #     )
-
-        # hidden_states_shape = hidden_states.shape
-        # encoder_hidden_states_shape = encoder_hidden_states.shape
-        # hidden_states = hidden_states.reshape(-1).contiguous().reshape(original_hidden_states.shape)
-        # encoder_hidden_states = (
-        #     encoder_hidden_states.reshape(-1).contiguous().reshape(original_encoder_hidden_states.shape)
-        # )
-
-        # hidden_states = hidden_states.contiguous()
-        # encoder_hidden_states = encoder_hidden_states.contiguous()
+        hidden_states = hidden_states.contiguous()
+        encoder_hidden_states = encoder_hidden_states.contiguous()
 
         hidden_states_residual = hidden_states - original_hidden_states
         encoder_hidden_states_residual = encoder_hidden_states - original_encoder_hidden_states
-
-        # hidden_states_residual = hidden_states_residual.reshape(-1).contiguous().reshape(original_hidden_states.shape)
-        # encoder_hidden_states_residual = (
-        #     encoder_hidden_states_residual.reshape(-1).contiguous().reshape(original_encoder_hidden_states.shape)
-        # )
 
         return hidden_states, encoder_hidden_states, hidden_states_residual, encoder_hidden_states_residual

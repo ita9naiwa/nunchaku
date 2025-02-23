@@ -10,10 +10,11 @@ pipeline = FluxPipeline.from_pretrained(
     "black-forest-labs/FLUX.1-schnell", transformer=transformer, torch_dtype=torch.bfloat16
 ).to("cuda")
 
-apply_cache_on_pipe(pipeline, residual_diff_threshold=0.1)
+apply_cache_on_pipe(
+    pipeline, residual_diff_threshold=0.1)
 
 image = pipeline(
-    "kimchi warrior",
+    ["A cat holding a sign that says hello world"],
     width=1024,
     height=1024,
     num_inference_steps=50,
